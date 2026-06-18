@@ -7,13 +7,15 @@
   <style>
     :root {
       --bg: #0f1117;
-      --surface: #1a1d27;
-      --border: #2a2f3d;
+      --surface: rgba(26, 29, 39, 0.82);
+      --border: rgba(255, 255, 255, 0.08);
       --text: #e8eaef;
       --muted: #8b93a7;
       --accent: #7c6cff;
       --accent-dim: #5a4fd4;
-      --tag: #2d3348;
+      --accent-gold: #e8c547;
+      --accent-cyan: #5eead4;
+      --tag: rgba(45, 51, 72, 0.9);
       --tag-active: #3d3566;
     }
 
@@ -25,31 +27,90 @@
       color: var(--text);
       min-height: 100vh;
       line-height: 1.5;
+      position: relative;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: url("bg-vibe.png") center / cover no-repeat;
+      opacity: 0.14;
+      animation: vibe-drift 32s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(232, 197, 71, 0.07), transparent),
+        radial-gradient(ellipse 60% 40% at 90% 20%, rgba(94, 234, 212, 0.05), transparent),
+        linear-gradient(180deg, rgba(15, 17, 23, 0.55) 0%, rgba(15, 17, 23, 0.94) 65%);
+      pointer-events: none;
+    }
+
+    @keyframes vibe-drift {
+      from { transform: scale(1.04) translate(0, 0); filter: brightness(1); }
+      to { transform: scale(1.1) translate(-1.2%, -0.8%); filter: brightness(1.08); }
+    }
+
+    @keyframes header-glow {
+      from { opacity: 0.5; transform: scale(1); }
+      to { opacity: 0.72; transform: scale(1.04); }
     }
 
     header {
-      padding: 1.25rem 1.5rem;
+      position: relative;
+      z-index: 1;
+      overflow: hidden;
+      padding: 2rem 1.5rem 1.75rem;
       border-bottom: 1px solid var(--border);
-      background: var(--surface);
+    }
+
+    header::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("bg-vibe.png") center 35% / cover no-repeat;
+      animation: header-glow 20s ease-in-out infinite alternate;
+    }
+
+    header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(105deg, rgba(15, 17, 23, 0.88) 0%, rgba(15, 17, 23, 0.45) 45%, rgba(15, 17, 23, 0.82) 100%),
+        linear-gradient(180deg, transparent 40%, rgba(15, 17, 23, 0.95) 100%);
     }
 
     header h1 {
+      position: relative;
+      z-index: 1;
       font-size: 1.35rem;
       font-weight: 600;
       letter-spacing: -0.02em;
     }
 
     header p {
-      color: var(--muted);
+      position: relative;
+      z-index: 1;
+      color: rgba(232, 234, 239, 0.72);
       font-size: 0.875rem;
-      margin-top: 0.25rem;
+      margin-top: 0.35rem;
     }
 
     .layout {
+      position: relative;
+      z-index: 1;
       display: grid;
       grid-template-columns: 280px 1fr;
       gap: 0;
-      min-height: calc(100vh - 72px);
+      min-height: calc(100vh - 96px);
     }
 
     @media (max-width: 768px) {
@@ -60,8 +121,10 @@
       border-right: 1px solid var(--border);
       padding: 1rem;
       background: var(--surface);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       overflow-y: auto;
-      max-height: calc(100vh - 72px);
+      max-height: calc(100vh - 96px);
     }
 
     aside h2 {
@@ -126,7 +189,7 @@
     main {
       padding: 1.25rem 1.5rem;
       overflow-y: auto;
-      max-height: calc(100vh - 72px);
+      max-height: calc(100vh - 96px);
     }
 
     .status {
@@ -150,7 +213,7 @@
       color: var(--muted);
     }
 
-    .relay-dot.ok { color: #7dcea0; }
+    .relay-dot.ok { color: var(--accent-cyan); }
     .relay-dot.fail { color: #e07a7a; }
     .relay-dot.pending { color: var(--muted); }
 
@@ -165,12 +228,17 @@
       gap: 1rem;
       padding: 1rem;
       background: var(--surface);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border: 1px solid var(--border);
       border-radius: 10px;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
 
-    .article:hover { border-color: var(--accent-dim); }
+    .article:hover {
+      border-color: rgba(232, 197, 71, 0.35);
+      box-shadow: 0 0 24px rgba(124, 108, 255, 0.08);
+    }
 
     .avatar {
       width: 44px;
