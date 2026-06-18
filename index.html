@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nostr Articles — kind:30023</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2f3d;
+      --text: #e8eaef;
+      --muted: #8b93a7;
+      --accent: #7c6cff;
+      --accent-dim: #5a4fd4;
+      --tag: #2d3348;
+      --tag-active: #3d3566;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 72px);
+    }
+
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    aside {
+      border-right: 1px solid var(--border);
+      padding: 1rem;
+      background: var(--surface);
+      overflow-y: auto;
+      max-height: calc(100vh - 72px);
+    }
+
+    aside h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .filter-mode {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .filter-mode button {
+      flex: 1;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .filter-mode button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .tag-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .tag-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+
+    .tag-item:hover { background: var(--tag); }
+    .tag-item input { accent-color: var(--accent); cursor: pointer; }
+    .tag-item .count {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.75rem;
+      background: var(--tag);
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+    }
+
+    main {
+      padding: 1.25rem 1.5rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 72px);
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+
+    .articles {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .article {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color 0.15s;
+    }
+
+    .article:hover { border-color: var(--accent-dim); }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--tag);
+      flex-shrink: 0;
+    }
+
+    .avatar-placeholder {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--tag);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .article-body { flex: 1; min-width: 0; }
+
+    .article-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .article-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .article-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .chip {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      background: var(--tag);
+      border-radius: 999px;
+      color: var(--muted);
+    }
+
+    .chip.selected {
+      background: var(--tag-active);
+      color: #c4bfff;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Nostr Long-form Articles</h1>
+    <p>21 kind:30023 articles from public relays · filter by hashtag</p>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <h2>Hashtags</h2>
+      <div class="filter-mode">
+        <button type="button" id="mode-or" class="active">OR</button>
+        <button type="button" id="mode-and">AND</button>
+      </div>
+      <div id="tag-list" class="tag-list"></div>
+    </aside>
+
+    <main>
+      <div id="status" class="status"><span class="spinner"></span>Connecting to relays…</div>
+      <div id="articles" class="articles"></div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { SimplePool } from "https://esm.sh/nostr-tools@2.10.4/pool";
+
+    const RELAYS = [
+      "wss://relay.damus.io",
+      "wss://nos.lol",
+      "wss://relay.primal.net",
+      "wss://relay.snort.social",
+      "wss://relay.nostr.band",
+    ];
+
+    const LIMIT = 21;
+    const pool = new SimplePool({ enableReconnect: false });
+
+    let allArticles = [];
+    let profiles = new Map();
+    let selectedTags = new Set();
+    let filterMode = "or";
+
+    const statusEl = document.getElementById("status");
+    const articlesEl = document.getElementById("articles");
+    const tagListEl = document.getElementById("tag-list");
+    const modeOrBtn = document.getElementById("mode-or");
+    const modeAndBtn = document.getElementById("mode-and");
+
+    function tagValue(tags, name) {
+      const t = tags.find(([k]) => k === name);
+      return t ? t[1] : null;
+    }
+
+    function articleTags(event) {
+      return event.tags.filter(([k]) => k === "t").map(([, v]) => v.toLowerCase());
+    }
+
+    function articleTitle(event) {
+      return (
+        tagValue(event.tags, "title") ||
+        event.content.split("\n")[0].replace(/^#+\s*/, "").slice(0, 120) ||
+        tagValue(event.tags, "d") ||
+        "Untitled"
+      );
+    }
+
+    function articleTimestamp(event) {
+      const published = tagValue(event.tags, "published_at");
+      const ts = published ? Number(published) : event.created_at;
+      return new Date(ts * 1000);
+    }
+
+    function formatDate(date) {
+      return date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    function buildTagCounts(articles) {
+      const counts = new Map();
+      for (const a of articles) {
+        for (const t of articleTags(a)) {
+          counts.set(t, (counts.get(t) || 0) + 1);
+        }
+      }
+      return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    }
+
+    function passesFilter(article) {
+      if (selectedTags.size === 0) return true;
+      const tags = new Set(articleTags(article));
+      if (filterMode === "and") {
+        return [...selectedTags].every((t) => tags.has(t));
+      }
+      return [...selectedTags].some((t) => tags.has(t));
+    }
+
+    function renderTags(tagCounts) {
+      tagListEl.innerHTML = "";
+      if (tagCounts.length === 0) {
+        tagListEl.innerHTML = '<p style="color:var(--muted);font-size:0.8rem">No hashtags found</p>';
+        return;
+      }
+      for (const [tag, count] of tagCounts) {
+        const label = document.createElement("label");
+        label.className = "tag-item";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = selectedTags.has(tag);
+        cb.addEventListener("change", () => {
+          if (cb.checked) selectedTags.add(tag);
+          else selectedTags.delete(tag);
+          renderArticles();
+        });
+        const span = document.createElement("span");
+        span.textContent = `#${tag}`;
+        const badge = document.createElement("span");
+        badge.className = "count";
+        badge.textContent = count;
+        label.append(cb, span, badge);
+        tagListEl.append(label);
+      }
+    }
+
+    function renderArticles() {
+      const filtered = allArticles.filter(passesFilter);
+      statusEl.textContent = `${filtered.length} of ${allArticles.length} articles${
+        selectedTags.size ? ` · ${filterMode.toUpperCase()} filter: ${[...selectedTags].map((t) => "#" + t).join(", ")}` : ""
+      }`;
+
+      articlesEl.innerHTML = "";
+      if (filtered.length === 0) {
+        articlesEl.innerHTML = '<div class="empty">No articles match the selected hashtags.</div>';
+        return;
+      }
+
+      for (const event of filtered) {
+        const profile = profiles.get(event.pubkey) || {};
+        const card = document.createElement("article");
+        card.className = "article";
+
+        let avatar;
+        if (profile.picture) {
+          avatar = document.createElement("img");
+          avatar.className = "avatar";
+          avatar.src = profile.picture;
+          avatar.alt = profile.name || "Author";
+          avatar.referrerPolicy = "no-referrer";
+          avatar.onerror = () => {
+            avatar.replaceWith(makePlaceholder(profile.name));
+          };
+        } else {
+          avatar = makePlaceholder(profile.name);
+        }
+
+        const body = document.createElement("div");
+        body.className = "article-body";
+
+        const title = document.createElement("div");
+        title.className = "article-title";
+        title.textContent = articleTitle(event);
+
+        const meta = document.createElement("div");
+        meta.className = "article-meta";
+        const author = document.createElement("span");
+        author.textContent = profile.name || `${event.pubkey.slice(0, 8)}…`;
+        const time = document.createElement("time");
+        time.dateTime = articleTimestamp(event).toISOString();
+        time.textContent = formatDate(articleTimestamp(event));
+        meta.append(author, time);
+
+        const tags = document.createElement("div");
+        tags.className = "article-tags";
+        for (const t of articleTags(event)) {
+          const chip = document.createElement("span");
+          chip.className = "chip" + (selectedTags.has(t) ? " selected" : "");
+          chip.textContent = `#${t}`;
+          tags.append(chip);
+        }
+
+        body.append(title, meta, tags);
+        card.append(avatar, body);
+        articlesEl.append(card);
+      }
+    }
+
+    function makePlaceholder(name) {
+      const el = document.createElement("div");
+      el.className = "avatar-placeholder";
+      el.textContent = (name || "?").charAt(0).toUpperCase();
+      return el;
+    }
+
+    async function fetchArticles() {
+      const seen = new Set();
+      const events = [];
+
+      return new Promise((resolve) => {
+        const sub = pool.subscribeMany(
+          RELAYS,
+          [{ kinds: [30023], limit: LIMIT }],
+          {
+            onevent(event) {
+              if (seen.has(event.id)) return;
+              seen.add(event.id);
+              events.push(event);
+            },
+            oneose() {
+              sub.close();
+              events.sort((a, b) => b.created_at - a.created_at);
+              resolve(events.slice(0, LIMIT));
+            },
+          }
+        );
+
+        setTimeout(() => {
+          sub.close();
+          events.sort((a, b) => b.created_at - a.created_at);
+          resolve(events.slice(0, LIMIT));
+        }, 8000);
+      });
+    }
+
+    async function fetchProfiles(pubkeys) {
+      if (pubkeys.length === 0) return;
+      const map = new Map();
+
+      await new Promise((resolve) => {
+        const sub = pool.subscribeMany(
+          RELAYS,
+          [{ kinds: [0], authors: pubkeys, limit: pubkeys.length }],
+          {
+            onevent(event) {
+              try {
+                const meta = JSON.parse(event.content);
+                map.set(event.pubkey, meta);
+              } catch { /* ignore bad metadata */ }
+            },
+            oneose() {
+              sub.close();
+              resolve();
+            },
+          }
+        );
+
+        setTimeout(() => {
+          sub.close();
+          resolve();
+        }, 5000);
+      });
+
+      profiles = map;
+    }
+
+    modeOrBtn.addEventListener("click", () => {
+      filterMode = "or";
+      modeOrBtn.classList.add("active");
+      modeAndBtn.classList.remove("active");
+      renderArticles();
+    });
+
+    modeAndBtn.addEventListener("click", () => {
+      filterMode = "and";
+      modeAndBtn.classList.add("active");
+      modeOrBtn.classList.remove("active");
+      renderArticles();
+    });
+
+    try {
+      allArticles = await fetchArticles();
+      if (allArticles.length === 0) {
+        statusEl.textContent = "No kind:30023 articles found on these relays.";
+        return;
+      }
+
+      const pubkeys = [...new Set(allArticles.map((e) => e.pubkey))];
+      await fetchProfiles(pubkeys);
+
+      renderTags(buildTagCounts(allArticles));
+      renderArticles();
+    } catch (err) {
+      statusEl.textContent = `Error: ${err.message}`;
+    } finally {
+      pool.close(RELAYS);
+    }
+  </script>
+</body>
+</html>
