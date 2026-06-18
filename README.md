@@ -29,8 +29,7 @@ Or open `index.html` directly in a browser (some browsers block module imports f
 
 ## Stack
 
-- Vanilla HTML/CSS/JS
-- [nostr-tools](https://github.com/nbd-wtf/nostr-tools) via esm.sh
+- Vanilla HTML/CSS/JS with native WebSocket Nostr protocol (no build step, no CDN dependencies)
 - GitHub Pages for deployment
 
 ## Relays

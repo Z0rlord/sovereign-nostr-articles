@@ -274,9 +274,7 @@
     </main>
   </div>
 
-  <script type="module">
-    import { SimplePool } from "https://esm.sh/nostr-tools@2.10.4/pool";
-
+  <script>
     const RELAYS = [
       "wss://relay.dojopop.live",
       "wss://relay.damus.io",
@@ -285,9 +283,9 @@
       "wss://relay.nostr.band",
     ];
 
-    const QUERY_TIMEOUT_MS = 12_000;
+    const CONNECT_TIMEOUT_MS = 6_000;
+    const QUERY_TIMEOUT_MS = 10_000;
     const LIMIT = 21;
-    const pool = new SimplePool({ enableReconnect: true });
 
     let allArticles = [];
     let profiles = new Map();
@@ -315,7 +313,7 @@
       relayStatusEl.innerHTML = "";
       for (const relay of RELAYS) {
         const chip = document.createElement("span");
-        chip.className = `relay-dot ${relayHealth.get(relay) || "pending"}`;
+        chip.className = "relay-dot " + (relayHealth.get(relay) || "pending");
         chip.title = relay;
         chip.textContent = relayLabel(relay);
         relayStatusEl.append(chip);
@@ -327,41 +325,70 @@
       renderRelayStatus();
     }
 
-    async function withTimeout(promise, ms) {
-      let timer;
-      const timeout = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error("timeout")), ms);
+    function queryRelay(relay, filter, timeoutMs) {
+      return new Promise((resolve) => {
+        const events = [];
+        const subId = "q" + Math.random().toString(36).slice(2, 10);
+        let ws;
+        let finished = false;
+
+        const finish = (connected) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(queryTimer);
+          clearTimeout(connectTimer);
+          try { ws.close(); } catch { /* ignore */ }
+          if (connected) setRelayHealth(relay, "ok");
+          else setRelayHealth(relay, "fail");
+          resolve(events);
+        };
+
+        const connectTimer = setTimeout(() => finish(false), CONNECT_TIMEOUT_MS);
+        const queryTimer = setTimeout(() => finish(true), timeoutMs);
+
+        try {
+          ws = new WebSocket(relay);
+        } catch {
+          clearTimeout(connectTimer);
+          clearTimeout(queryTimer);
+          setRelayHealth(relay, "fail");
+          resolve([]);
+          return;
+        }
+
+        ws.onopen = () => {
+          clearTimeout(connectTimer);
+          setRelayHealth(relay, "ok");
+          ws.send(JSON.stringify(["REQ", subId, filter]));
+        };
+
+        ws.onmessage = (msg) => {
+          try {
+            const frame = JSON.parse(msg.data);
+            if (frame[0] === "EVENT" && frame[1] === subId) {
+              events.push(frame[2]);
+            } else if (frame[0] === "EOSE" && frame[1] === subId) {
+              finish(true);
+            }
+          } catch { /* ignore malformed frames */ }
+        };
+
+        ws.onerror = () => finish(false);
+        ws.onclose = () => {
+          if (!finished) finish(relayHealth.get(relay) === "ok");
+        };
       });
-      try {
-        return await Promise.race([promise, timeout]);
-      } finally {
-        clearTimeout(timer);
-      }
     }
 
-    async function queryRelays(filters) {
+    async function queryRelays(filter) {
       renderRelayStatus();
-      const batches = await Promise.allSettled(
-        RELAYS.map(async (relay) => {
-          try {
-            await withTimeout(pool.ensureRelay(relay), 8000);
-            setRelayHealth(relay, "ok");
-            const events = await withTimeout(
-              pool.querySync([relay], filters),
-              QUERY_TIMEOUT_MS
-            );
-            return events;
-          } catch {
-            setRelayHealth(relay, "fail");
-            return [];
-          }
-        })
+      const batches = await Promise.all(
+        RELAYS.map((relay) => queryRelay(relay, filter, QUERY_TIMEOUT_MS))
       );
 
       const seen = new Map();
       for (const batch of batches) {
-        if (batch.status !== "fulfilled") continue;
-        for (const event of batch.value) {
+        for (const event of batch) {
           const prev = seen.get(event.id);
           if (!prev || event.created_at > prev.created_at) {
             seen.set(event.id, event);
@@ -562,31 +589,34 @@
       renderArticles();
     });
 
-    try {
-      allArticles = await fetchArticles();
-      const connected = [...relayHealth.values()].filter((s) => s === "ok").length;
+    async function load() {
+      renderRelayStatus();
+      try {
+        allArticles = await fetchArticles();
+        const connected = [...relayHealth.values()].filter((s) => s === "ok").length;
 
-      if (connected === 0) {
-        statusEl.textContent = "Could not connect to any relay. Check your network or ad blockers.";
-        return;
+        if (connected === 0) {
+          statusEl.textContent = "Could not connect to any relay. Check your network or ad blockers.";
+          return;
+        }
+
+        if (allArticles.length === 0) {
+          statusSuffix = " (DojoPop relay stores practice events; kind:30023 articles come from public relays)";
+          statusEl.textContent = "0 articles · " + connected + "/" + RELAYS.length + " relays connected" + statusSuffix;
+          return;
+        }
+
+        const pubkeys = [...new Set(allArticles.map((e) => e.pubkey))];
+        await fetchProfiles(pubkeys);
+
+        renderTags(buildTagCounts(allArticles));
+        renderArticles();
+      } catch (err) {
+        statusEl.textContent = "Error: " + err.message;
       }
-
-      if (allArticles.length === 0) {
-        statusSuffix = " (no kind:30023 on connected relays — articles come from public relays)";
-        statusEl.textContent = `0 articles · ${connected}/${RELAYS.length} relays connected${statusSuffix}`;
-        return;
-      }
-
-      const pubkeys = [...new Set(allArticles.map((e) => e.pubkey))];
-      await fetchProfiles(pubkeys);
-
-      renderTags(buildTagCounts(allArticles));
-      renderArticles();
-    } catch (err) {
-      statusEl.textContent = `Error: ${err.message}`;
-    } finally {
-      pool.close(RELAYS);
     }
+
+    load();
   </script>
 </body>
 </html>
