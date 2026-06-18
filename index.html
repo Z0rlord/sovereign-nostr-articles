@@ -132,8 +132,27 @@
     .status {
       color: var(--muted);
       font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .relay-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
       margin-bottom: 1rem;
     }
+
+    .relay-dot {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: var(--tag);
+      color: var(--muted);
+    }
+
+    .relay-dot.ok { color: #7dcea0; }
+    .relay-dot.fail { color: #e07a7a; }
+    .relay-dot.pending { color: var(--muted); }
 
     .articles {
       display: flex;
@@ -250,6 +269,7 @@
 
     <main>
       <div id="status" class="status"><span class="spinner"></span>Connecting to relays…</div>
+      <div id="relay-status" class="relay-status"></div>
       <div id="articles" class="articles"></div>
     </main>
   </div>
@@ -258,26 +278,98 @@
     import { SimplePool } from "https://esm.sh/nostr-tools@2.10.4/pool";
 
     const RELAYS = [
+      "wss://relay.dojopop.live",
       "wss://relay.damus.io",
       "wss://nos.lol",
       "wss://relay.primal.net",
-      "wss://relay.snort.social",
       "wss://relay.nostr.band",
     ];
 
+    const QUERY_TIMEOUT_MS = 12_000;
     const LIMIT = 21;
-    const pool = new SimplePool({ enableReconnect: false });
+    const pool = new SimplePool({ enableReconnect: true });
 
     let allArticles = [];
     let profiles = new Map();
     let selectedTags = new Set();
     let filterMode = "or";
+    let relayHealth = new Map(RELAYS.map((r) => [r, "pending"]));
+    let statusSuffix = "";
 
     const statusEl = document.getElementById("status");
+    const relayStatusEl = document.getElementById("relay-status");
     const articlesEl = document.getElementById("articles");
     const tagListEl = document.getElementById("tag-list");
     const modeOrBtn = document.getElementById("mode-or");
     const modeAndBtn = document.getElementById("mode-and");
+
+    function relayLabel(url) {
+      try {
+        return new URL(url).hostname.replace(/^relay\./, "");
+      } catch {
+        return url;
+      }
+    }
+
+    function renderRelayStatus() {
+      relayStatusEl.innerHTML = "";
+      for (const relay of RELAYS) {
+        const chip = document.createElement("span");
+        chip.className = `relay-dot ${relayHealth.get(relay) || "pending"}`;
+        chip.title = relay;
+        chip.textContent = relayLabel(relay);
+        relayStatusEl.append(chip);
+      }
+    }
+
+    function setRelayHealth(relay, state) {
+      relayHealth.set(relay, state);
+      renderRelayStatus();
+    }
+
+    async function withTimeout(promise, ms) {
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), ms);
+      });
+      try {
+        return await Promise.race([promise, timeout]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    async function queryRelays(filters) {
+      renderRelayStatus();
+      const batches = await Promise.allSettled(
+        RELAYS.map(async (relay) => {
+          try {
+            await withTimeout(pool.ensureRelay(relay), 8000);
+            setRelayHealth(relay, "ok");
+            const events = await withTimeout(
+              pool.querySync([relay], filters),
+              QUERY_TIMEOUT_MS
+            );
+            return events;
+          } catch {
+            setRelayHealth(relay, "fail");
+            return [];
+          }
+        })
+      );
+
+      const seen = new Map();
+      for (const batch of batches) {
+        if (batch.status !== "fulfilled") continue;
+        for (const event of batch.value) {
+          const prev = seen.get(event.id);
+          if (!prev || event.created_at > prev.created_at) {
+            seen.set(event.id, event);
+          }
+        }
+      }
+      return [...seen.values()];
+    }
 
     function tagValue(tags, name) {
       const t = tags.find(([k]) => k === name);
@@ -361,8 +453,9 @@
 
     function renderArticles() {
       const filtered = allArticles.filter(passesFilter);
-      statusEl.textContent = `${filtered.length} of ${allArticles.length} articles${
-        selectedTags.size ? ` · ${filterMode.toUpperCase()} filter: ${[...selectedTags].map((t) => "#" + t).join(", ")}` : ""
+      const connected = [...relayHealth.values()].filter((s) => s === "ok").length;
+      statusEl.textContent = `${filtered.length} of ${allArticles.length} articles · ${connected}/${RELAYS.length} relays${statusSuffix}${
+        selectedTags.size ? ` · ${filterMode.toUpperCase()}: ${[...selectedTags].map((t) => "#" + t).join(", ")}` : ""
       }`;
 
       articlesEl.innerHTML = "";
@@ -429,11 +522,9 @@
     }
 
     async function fetchArticles() {
-      statusEl.innerHTML = '<span class="spinner"></span>Fetching kind:30023 articles…';
-      const events = await pool.querySync(RELAYS, {
-        kinds: [30023],
-        limit: LIMIT,
-      });
+      statusEl.innerHTML = '<span class="spinner"></span>Connecting to relays…';
+      statusSuffix = "";
+      const events = await queryRelays({ kinds: [30023], limit: LIMIT });
       events.sort((a, b) => b.created_at - a.created_at);
       return events.slice(0, LIMIT);
     }
@@ -441,16 +532,19 @@
     async function fetchProfiles(pubkeys) {
       if (pubkeys.length === 0) return;
       statusEl.innerHTML = '<span class="spinner"></span>Loading author profiles…';
-      const events = await pool.querySync(RELAYS, {
-        kinds: [0],
-        authors: pubkeys,
-      });
+      const events = await queryRelays({ kinds: [0], authors: pubkeys });
       const map = new Map();
       for (const event of events) {
         try {
-          map.set(event.pubkey, JSON.parse(event.content));
+          const meta = JSON.parse(event.content);
+          const prev = map.get(event.pubkey);
+          if (!prev || event.created_at > (prev._ts || 0)) {
+            meta._ts = event.created_at;
+            map.set(event.pubkey, meta);
+          }
         } catch { /* ignore bad metadata */ }
       }
+      for (const meta of map.values()) delete meta._ts;
       profiles = map;
     }
 
@@ -470,8 +564,16 @@
 
     try {
       allArticles = await fetchArticles();
+      const connected = [...relayHealth.values()].filter((s) => s === "ok").length;
+
+      if (connected === 0) {
+        statusEl.textContent = "Could not connect to any relay. Check your network or ad blockers.";
+        return;
+      }
+
       if (allArticles.length === 0) {
-        statusEl.textContent = "No kind:30023 articles found on these relays.";
+        statusSuffix = " (no kind:30023 on connected relays — articles come from public relays)";
+        statusEl.textContent = `0 articles · ${connected}/${RELAYS.length} relays connected${statusSuffix}`;
         return;
       }
 

@@ -35,8 +35,12 @@ Or open `index.html` directly in a browser (some browsers block module imports f
 
 ## Relays
 
+- `wss://relay.dojopop.live` — DojoPop relay (primary; profiles + connectivity)
 - `wss://relay.damus.io`
 - `wss://nos.lol`
 - `wss://relay.primal.net`
-- `wss://relay.snort.social`
 - `wss://relay.nostr.band`
+
+Each relay is queried independently so one failure does not block the rest. Relay chips in the UI show green (connected), red (failed), or gray (pending).
+
+Note: DojoPop relay allowlists specific event kinds for publishing; `kind:30023` articles are fetched from public relays, while DojoPop helps with author profiles (`kind:0`) and reliable connectivity.
