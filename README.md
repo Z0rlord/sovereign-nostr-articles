@@ -1,6 +1,6 @@
 # Nostr kind:30023 Article Reader
 
-Single-page HTML app for the [Sovereign Engineering](https://sovereignengineering.io) code camp exercise.
+Single-page HTML app for the [Sovereign Engineering](https://sovereignengineering.io) YOLO:8 cohort.
 
 Fetches **21** long-form Nostr articles (`kind:30023`, [NIP-23](https://github.com/nostr-protocol/nips/blob/master/23.md)) from public relays, displays title, author profile (name + picture), and timestamp, with hashtag filtering from `t` tags.
 
