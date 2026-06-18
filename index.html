@@ -429,63 +429,28 @@
     }
 
     async function fetchArticles() {
-      const seen = new Set();
-      const events = [];
-
-      return new Promise((resolve) => {
-        const sub = pool.subscribeMany(
-          RELAYS,
-          [{ kinds: [30023], limit: LIMIT }],
-          {
-            onevent(event) {
-              if (seen.has(event.id)) return;
-              seen.add(event.id);
-              events.push(event);
-            },
-            oneose() {
-              sub.close();
-              events.sort((a, b) => b.created_at - a.created_at);
-              resolve(events.slice(0, LIMIT));
-            },
-          }
-        );
-
-        setTimeout(() => {
-          sub.close();
-          events.sort((a, b) => b.created_at - a.created_at);
-          resolve(events.slice(0, LIMIT));
-        }, 8000);
+      statusEl.innerHTML = '<span class="spinner"></span>Fetching kind:30023 articles…';
+      const events = await pool.querySync(RELAYS, {
+        kinds: [30023],
+        limit: LIMIT,
       });
+      events.sort((a, b) => b.created_at - a.created_at);
+      return events.slice(0, LIMIT);
     }
 
     async function fetchProfiles(pubkeys) {
       if (pubkeys.length === 0) return;
-      const map = new Map();
-
-      await new Promise((resolve) => {
-        const sub = pool.subscribeMany(
-          RELAYS,
-          [{ kinds: [0], authors: pubkeys, limit: pubkeys.length }],
-          {
-            onevent(event) {
-              try {
-                const meta = JSON.parse(event.content);
-                map.set(event.pubkey, meta);
-              } catch { /* ignore bad metadata */ }
-            },
-            oneose() {
-              sub.close();
-              resolve();
-            },
-          }
-        );
-
-        setTimeout(() => {
-          sub.close();
-          resolve();
-        }, 5000);
+      statusEl.innerHTML = '<span class="spinner"></span>Loading author profiles…';
+      const events = await pool.querySync(RELAYS, {
+        kinds: [0],
+        authors: pubkeys,
       });
-
+      const map = new Map();
+      for (const event of events) {
+        try {
+          map.set(event.pubkey, JSON.parse(event.content));
+        } catch { /* ignore bad metadata */ }
+      }
       profiles = map;
     }
 
